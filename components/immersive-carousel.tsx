@@ -7,12 +7,14 @@ import { ProductQuickPreview } from "./product-quick-preview"
 
 // Config visual por posición relativa al centro (-2, -1, 0, 1, 2)
 const SLOT_CONFIG: Record<number, { x: number; rotateY: number; scale: number; opacity: number; zIndex: number }> = {
-  [-2]: { x: -340, rotateY: 52,  scale: 0.62, opacity: 0.55, zIndex: 1 },
-  [-1]: { x: -185, rotateY: 28,  scale: 0.80, opacity: 0.82, zIndex: 2 },
+  [-2]: { x: -330, rotateY: 48,  scale: 0.63, opacity: 0.50, zIndex: 1 },
+  [-1]: { x: -178, rotateY: 26,  scale: 0.81, opacity: 0.80, zIndex: 2 },
   [0]:  { x: 0,    rotateY: 0,   scale: 1,    opacity: 1,    zIndex: 5 },
-  [1]:  { x: 185,  rotateY: -28, scale: 0.80, opacity: 0.82, zIndex: 2 },
-  [2]:  { x: 340,  rotateY: -52, scale: 0.62, opacity: 0.55, zIndex: 1 },
+  [1]:  { x: 178,  rotateY: -26, scale: 0.81, opacity: 0.80, zIndex: 2 },
+  [2]:  { x: 330,  rotateY: -48, scale: 0.63, opacity: 0.50, zIndex: 1 },
 }
+
+const SMOOTH_SPRING = { type: "spring" as const, stiffness: 85, damping: 22, mass: 1.4 }
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr]
@@ -56,7 +58,7 @@ function CoverflowCard({ product, offset, onClick, isActive }: CoverflowCardProp
 
   return (
     <motion.div
-      layout
+      initial={{ x: cfg.x * 1.3, rotateY: cfg.rotateY, scale: cfg.scale * 0.8, opacity: 0 }}
       animate={{
         x: cfg.x,
         rotateY: cfg.rotateY,
@@ -64,7 +66,8 @@ function CoverflowCard({ product, offset, onClick, isActive }: CoverflowCardProp
         opacity: cfg.opacity,
         zIndex: cfg.zIndex,
       }}
-      transition={{ type: "spring", stiffness: 280, damping: 32 }}
+      exit={{ x: cfg.x * 1.3, scale: cfg.scale * 0.8, opacity: 0 }}
+      transition={SMOOTH_SPRING}
       onClick={onClick}
       className="absolute cursor-pointer select-none"
       style={{ transformStyle: "preserve-3d", originX: "50%" }}
@@ -214,15 +217,17 @@ export function ImmersiveCarousel({ autoplay = true, intervalMs = 3000 }: Coverf
         className="relative w-full flex items-center justify-center"
         style={{ perspective: "1100px", height: 320, perspectiveOrigin: "50% 40%" }}
       >
-        {visibleSlots.map(({ product, offset }) => (
-          <CoverflowCard
-            key={`${product.id}-${offset}`}
-            product={product}
-            offset={offset}
-            isActive={offset === 0}
-            onClick={() => handleCardClick(product, offset)}
-          />
-        ))}
+        <AnimatePresence initial={false}>
+          {visibleSlots.map(({ product, offset }) => (
+            <CoverflowCard
+              key={product.id}
+              product={product}
+              offset={offset}
+              isActive={offset === 0}
+              onClick={() => handleCardClick(product, offset)}
+            />
+          ))}
+        </AnimatePresence>
       </div>
 
       {/* Dot navigation */}
