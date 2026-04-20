@@ -281,38 +281,44 @@ export function HomeView() {
         <div className="container px-4 md:px-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
-              <span className="text-xl font-black">KOY by m&m</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-2xl font-black">KOY</span>
+                <span className="text-xs font-medium text-muted-foreground tracking-widest">by m&m</span>
+              </div>
               <p className="text-sm text-muted-foreground mt-2">
                 Buzos oversized con diseños únicos para los verdaderos fans.
               </p>
+              <a href="mailto:welkyn22.info@gmail.com" className="text-xs text-muted-foreground hover:text-foreground mt-3 block transition-colors">
+                welkyn22.info@gmail.com
+              </a>
             </div>
             <div>
               <h4 className="font-semibold mb-4">Tienda</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><button onClick={() => setCurrentView("catalog")}>Catálogo</button></li>
-                <li><button onClick={() => { setCurrentView("catalog"); setCategoryFilter("anime") }}>Anime</button></li>
-                <li><button onClick={() => { setCurrentView("catalog"); setCategoryFilter("cine") }}>Cine</button></li>
+                <li><button className="hover:text-foreground transition-colors" onClick={() => setCurrentView("catalog")}>Catálogo</button></li>
+                <li><button className="hover:text-foreground transition-colors" onClick={() => { setCurrentView("catalog"); setCategoryFilter("anime") }}>Anime</button></li>
+                <li><button className="hover:text-foreground transition-colors" onClick={() => { setCurrentView("catalog"); setCategoryFilter("cine") }}>Cine</button></li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold mb-4">Soporte</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>Contacto</li>
-                <li>Envíos</li>
-                <li>Devoluciones</li>
-                <li>FAQ</li>
+                <li><button className="hover:text-foreground transition-colors" onClick={() => setCurrentView("support-contacto")}>Contacto</button></li>
+                <li><button className="hover:text-foreground transition-colors" onClick={() => setCurrentView("support-envios")}>Envíos</button></li>
+                <li><button className="hover:text-foreground transition-colors" onClick={() => setCurrentView("support-devoluciones")}>Devoluciones</button></li>
+                <li><button className="hover:text-foreground transition-colors" onClick={() => setCurrentView("support-faq")}>FAQ</button></li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold mb-4">Legal</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>Términos de Servicio</li>
-                <li>Política de Privacidad</li>
+                <li><button className="hover:text-foreground transition-colors" onClick={() => setCurrentView("legal-terminos")}>Términos de Servicio</button></li>
+                <li><button className="hover:text-foreground transition-colors" onClick={() => setCurrentView("legal-privacidad")}>Política de Privacidad</button></li>
               </ul>
             </div>
           </div>
           <div className="border-t mt-12 pt-8 text-center text-sm text-muted-foreground">
-            © 2024 KOY by m&m. Todos los derechos reservados.
+            © 2025 KOY by m&m. Todos los derechos reservados. · Colombia
           </div>
         </div>
       </footer>

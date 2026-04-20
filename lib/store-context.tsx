@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react"
 import { supabase, type DbProduct, type DbHomeConfig } from "./supabase"
+import type { User as SupabaseUser } from "@supabase/supabase-js"
 
 // Types
 export interface Product {
@@ -41,20 +42,15 @@ export interface User {
   name: string
   email: string
   avatar: string
+  role: "customer" | "admin"
 }
 
 export interface Order {
   id: string
-  userId: string
-  customerName: string
-  phone: string
-  address: string
-  city: string
-  notes: string
-  items: CartItem[]
+  orderNumber: string
+  status: string
   total: number
-  status: "pending" | "production" | "shipped"
-  createdAt: Date
+  createdAt: string
 }
 
 const DEFAULT_HOME_CONFIG: HomeConfig = {
@@ -94,12 +90,15 @@ function dbHomeConfigToHomeConfig(c: DbHomeConfig): HomeConfig {
   }
 }
 
-// Mock fallback orders
-const MOCK_ORDERS: Order[] = [
-  { id: "ORD-001", userId: "1", customerName: "Carlos Mendez", phone: "+57 310 555 1234", address: "Calle 100 #45-67, Apto 502", city: "Bogotá, Cundinamarca", notes: "Entregar en portería", items: [], total: 178000, status: "pending", createdAt: new Date("2024-01-15") },
-  { id: "ORD-002", userId: "2", customerName: "María García", phone: "+57 315 555 5678", address: "Carrera 70 #12-34", city: "Medellín, Antioquia", notes: "", items: [], total: 95000, status: "production", createdAt: new Date("2024-01-14") },
-  { id: "ORD-003", userId: "3", customerName: "Andrés López", phone: "+57 320 555 9012", address: "Av. 6N #25N-67", city: "Cali, Valle del Cauca", notes: "Llamar antes de entregar", items: [], total: 276000, status: "shipped", createdAt: new Date("2024-01-10") },
-]
+function buildUserFromSupabase(sbUser: SupabaseUser, profile: { name?: string | null; role?: string } | null): User {
+  return {
+    id: sbUser.id,
+    name: profile?.name || sbUser.user_metadata?.name || sbUser.email?.split("@")[0] || "Usuario",
+    email: sbUser.email || "",
+    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${sbUser.email}`,
+    role: (profile?.role as "customer" | "admin") || "customer",
+  }
+}
 
 interface StoreContextType {
   cart: CartItem[]
@@ -110,18 +109,20 @@ interface StoreContextType {
   cartTotal: number
   cartCount: number
   user: User | null
-  login: (email: string, password: string) => void
-  loginWithGoogle: () => void
-  logout: () => void
+  login: (email: string, password: string) => Promise<{ error?: string }>
+  loginWithGoogle: () => Promise<void>
+  register: (name: string, email: string, password: string) => Promise<{ error?: string }>
+  forgotPassword: (email: string) => Promise<{ error?: string }>
+  logout: () => Promise<void>
   isLoggedIn: boolean
   isAdmin: boolean
+  isAuthLoading: boolean
   currentView: string
   setCurrentView: (view: string) => void
   products: Product[]
   categoryFilter: string | null
   setCategoryFilter: (category: string | null) => void
   orders: Order[]
-  updateOrderStatus: (orderId: string, status: Order["status"]) => void
   homeConfig: HomeConfig
   updateHomeConfig: (config: Partial<HomeConfig>) => void
   publishHomeConfig: () => Promise<void>
@@ -135,14 +136,16 @@ const StoreContext = createContext<StoreContextType | undefined>(undefined)
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([])
   const [user, setUser] = useState<User | null>(null)
+  const [isAuthLoading, setIsAuthLoading] = useState(true)
   const [currentView, setCurrentView] = useState("home")
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
-  const [orders, setOrders] = useState<Order[]>(MOCK_ORDERS)
+  const [orders, setOrders] = useState<Order[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [homeConfig, setHomeConfig] = useState<HomeConfig>(DEFAULT_HOME_CONFIG)
   const [isPublishing, setIsPublishing] = useState(false)
   const [isLoadingProducts, setIsLoadingProducts] = useState(true)
 
+  // Load products and home_config from Supabase
   useEffect(() => {
     async function loadData() {
       setIsLoadingProducts(true)
@@ -153,13 +156,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         ])
         if (productsData) setProducts(productsData.map(dbProductToProduct))
         if (configData) setHomeConfig(dbHomeConfigToHomeConfig(configData))
-      } catch {
-        // fallback: products stay empty, home config stays default
-      } finally {
-        setIsLoadingProducts(false)
-      }
+      } catch {}
+      finally { setIsLoadingProducts(false) }
     }
     loadData()
+  }, [])
+
+  // Supabase Auth listener
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from("profiles").select("name, role").eq("id", session.user.id).single()
+        setUser(buildUserFromSupabase(session.user, profile))
+      }
+      setIsAuthLoading(false)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from("profiles").select("name, role").eq("id", session.user.id).single()
+        setUser(buildUserFromSupabase(session.user, profile))
+      } else {
+        setUser(null)
+      }
+    })
+
+    return () => subscription.unsubscribe()
   }, [])
 
   const featuredProducts = products
@@ -193,26 +217,44 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const cartTotal = cart.reduce((sum, i) => sum + i.product.basePrice * i.quantity, 0)
   const cartCount = cart.reduce((sum, i) => sum + i.quantity, 0)
 
-  const login = (email: string, _password: string) => {
-    const isAdmin = email === "welkyn22.info@gmail.com"
-    setUser({
-      id: isAdmin ? "admin" : "1",
-      name: isAdmin ? "Administrador" : email.split("@")[0],
-      email,
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
+  const login = async (email: string, password: string): Promise<{ error?: string }> => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) return { error: error.message }
+    return {}
+  }
+
+  const loginWithGoogle = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/` },
     })
   }
 
-  const loginWithGoogle = () => {
-    setUser({ id: "2", name: "Usuario Google", email: "usuario@gmail.com", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=google" })
+  const register = async (name: string, email: string, password: string): Promise<{ error?: string }> => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { name } },
+    })
+    if (error) return { error: error.message }
+    return {}
   }
 
-  const logout = () => setUser(null)
-  const isAdmin = user?.email === "welkyn22.info@gmail.com"
-
-  const updateOrderStatus = (orderId: string, status: Order["status"]) => {
-    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status } : o)))
+  const forgotPassword = async (email: string): Promise<{ error?: string }> => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/?view=reset-password`,
+    })
+    if (error) return { error: error.message }
+    return {}
   }
+
+  const logout = async () => {
+    await supabase.auth.signOut()
+    setUser(null)
+    setCurrentView("home")
+  }
+
+  const isAdmin = user?.role === "admin"
 
   const updateHomeConfig = useCallback((config: Partial<HomeConfig>) => {
     setHomeConfig((prev) => ({ ...prev, ...config }))
@@ -239,10 +281,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   return (
     <StoreContext.Provider value={{
       cart, addToCart, removeFromCart, updateQuantity, clearCart, cartTotal, cartCount,
-      user, login, loginWithGoogle, logout, isLoggedIn: !!user, isAdmin,
+      user, login, loginWithGoogle, register, forgotPassword, logout,
+      isLoggedIn: !!user, isAdmin, isAuthLoading,
       currentView, setCurrentView,
       products, categoryFilter, setCategoryFilter,
-      orders, updateOrderStatus,
+      orders,
       homeConfig, updateHomeConfig, publishHomeConfig, isPublishing,
       isLoadingProducts, featuredProducts,
     }}>

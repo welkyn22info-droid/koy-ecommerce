@@ -15,10 +15,15 @@ const spaceGrotesk = Space_Grotesk({
 })
 
 export const metadata: Metadata = {
-  title: 'WellkYn | Buzos Oversized con Estampados de Anime y Cine',
-  description: 'E-commerce de buzos oversized con estampados únicos bajo demanda. Diseños exclusivos de películas y animes para los verdaderos fans.',
-  keywords: ['buzos', 'oversized', 'anime', 'cine', 'estampados', 'streetwear', 'ropa'],
-  generator: 'v0.app',
+  title: 'KOY by m&m | Buzos Oversized Anime y Cine — Colombia',
+  description: 'Buzos oversized con estampados únicos de anime y cine, bajo demanda. Diseños exclusivos para los verdaderos fans. Envíos a todo Colombia.',
+  keywords: ['buzos oversized', 'anime', 'cine', 'KOY', 'streetwear Colombia', 'estampados', 'ropa fandom'],
+  openGraph: {
+    title: 'KOY by m&m — Buzos Oversized Anime y Cine',
+    description: 'Diseños exclusivos de anime y cine en buzos oversized de alta calidad. Envíos a todo Colombia.',
+    type: 'website',
+    locale: 'es_CO',
+  },
   icons: {
     icon: [
       {

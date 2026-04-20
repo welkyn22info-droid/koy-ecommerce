@@ -67,9 +67,10 @@ export function Navbar() {
         {/* Logo */}
         <button
           onClick={() => handleNavClick("home")}
-          className="flex items-center gap-2"
+          className="flex items-center gap-1.5"
         >
-          <span className="text-xl font-bold tracking-tight">WellkYn</span>
+          <span className="text-2xl font-black tracking-tight">KOY</span>
+          <span className="text-xs font-medium text-muted-foreground tracking-widest leading-none mt-0.5">by m&m</span>
         </button>
 
         {/* Desktop Navigation */}

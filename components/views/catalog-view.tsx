@@ -10,32 +10,22 @@ import { cn } from "@/lib/utils"
 export function CatalogView() {
   const { products, categoryFilter, setCategoryFilter } = useStore()
   const [sizeFilter, setSizeFilter] = useState<string | null>(null)
-  const [colorFilter, setColorFilter] = useState<string | null>(null)
   const [showMobileFilters, setShowMobileFilters] = useState(false)
 
   const filteredProducts = products.filter((product) => {
     if (categoryFilter && product.category !== categoryFilter) return false
     if (sizeFilter && !product.sizes.includes(sizeFilter)) return false
-    if (colorFilter && !product.colors.some((c) => c.name === colorFilter))
-      return false
     return true
   })
-
-  const allColors = Array.from(
-    new Map(
-      products.flatMap((p) => p.colors).map((c) => [c.name, c])
-    ).values()
-  )
 
   const allSizes = ["S", "M", "L", "XL"]
 
   const clearFilters = () => {
     setCategoryFilter(null)
     setSizeFilter(null)
-    setColorFilter(null)
   }
 
-  const hasActiveFilters = categoryFilter || sizeFilter || colorFilter
+  const hasActiveFilters = categoryFilter || sizeFilter
 
   const FilterContent = () => (
     <div className="space-y-6">
@@ -100,29 +90,6 @@ export function CatalogView() {
         </div>
       </div>
 
-      {/* Color Filter */}
-      <div>
-        <h3 className="font-semibold mb-3">Colores</h3>
-        <div className="flex flex-wrap gap-2">
-          {allColors.map((color) => (
-            <button
-              key={color.name}
-              onClick={() =>
-                setColorFilter(colorFilter === color.name ? null : color.name)
-              }
-              className={cn(
-                "w-8 h-8 rounded-full border-2 transition-all",
-                colorFilter === color.name
-                  ? "ring-2 ring-foreground ring-offset-2"
-                  : "border-border/50 hover:scale-110"
-              )}
-              style={{ backgroundColor: color.hex }}
-              title={color.name}
-            />
-          ))}
-        </div>
-      </div>
-
       {hasActiveFilters && (
         <Button
           variant="outline"
@@ -163,7 +130,7 @@ export function CatalogView() {
           Filtros
           {hasActiveFilters && (
             <span className="ml-1 px-1.5 py-0.5 bg-foreground text-background text-xs rounded-full">
-              {[categoryFilter, sizeFilter, colorFilter].filter(Boolean).length}
+              {[categoryFilter, sizeFilter].filter(Boolean).length}
             </span>
           )}
         </Button>
