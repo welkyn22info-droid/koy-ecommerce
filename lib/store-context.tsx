@@ -166,8 +166,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
-        const { data: profile } = await supabase
-          .from("profiles").select("name, role").eq("id", session.user.id).single()
+        const { data: profileRows } = await supabase.rpc("get_my_profile")
+        const profile = profileRows?.[0] ?? null
         setUser(buildUserFromSupabase(session.user, profile))
       }
       setIsAuthLoading(false)
@@ -175,8 +175,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
-        const { data: profile } = await supabase
-          .from("profiles").select("name, role").eq("id", session.user.id).single()
+        const { data: profileRows } = await supabase.rpc("get_my_profile")
+        const profile = profileRows?.[0] ?? null
         setUser(buildUserFromSupabase(session.user, profile))
       } else {
         setUser(null)
