@@ -3,8 +3,6 @@ import { createHmac } from "crypto"
 import { createSupabaseServiceClient } from "@/lib/supabase-server"
 import { Resend } from "resend"
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 export async function POST(request: Request) {
   const supabase = createSupabaseServiceClient()
 
@@ -122,6 +120,7 @@ export async function POST(request: Request) {
   // Send confirmation email if approved
   if (paymentStatus === "approved" && process.env.RESEND_API_KEY) {
     try {
+      const resend = new Resend(process.env.RESEND_API_KEY)
       await resend.emails.send({
         from: "KOY by m&m <noreply@welkyn.com>",
         to: order.customer_email,
