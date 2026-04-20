@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"require\\('./node_modules/embla-carousel-autoplay'\\)\")",
+      "Bash(npm run *)",
+      "Bash(node node_modules/next/dist/bin/next build)"
+    ]
+  }
+}
