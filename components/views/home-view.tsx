@@ -32,7 +32,7 @@ function RevealSection({ children, className }: { children: React.ReactNode; cla
 }
 
 export function HomeView() {
-  const { featuredProducts, products, setCurrentView, setCategoryFilter, homeConfig, isLoadingProducts } = useStore()
+  const { setCurrentView, setCategoryFilter, homeConfig } = useStore()
   const heroRef = useRef<HTMLElement>(null)
 
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] })
@@ -49,86 +49,101 @@ export function HomeView() {
   return (
     <div className="flex flex-col overflow-hidden">
 
-      {/* ── HERO ──────────────────────────────────────────── */}
-      <section ref={heroRef} className="relative min-h-[92vh] flex items-center justify-center overflow-hidden">
+      {/* ── HERO + CARRUSEL (todo visible al abrir) ────────── */}
+      <section ref={heroRef} className="relative min-h-screen flex flex-col justify-center overflow-hidden pb-8">
         {/* Background blobs parallax */}
         <motion.div style={{ y: blobY1 }} className="absolute inset-0 pointer-events-none">
           <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-foreground/[0.04] rounded-full blur-3xl" />
         </motion.div>
         <motion.div style={{ y: blobY2 }} className="absolute inset-0 pointer-events-none">
-          <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-foreground/[0.04] rounded-full blur-3xl" />
+          <div className="absolute bottom-1/3 right-1/4 w-80 h-80 bg-foreground/[0.04] rounded-full blur-3xl" />
         </motion.div>
 
         {/* Hero BG image (CMS) */}
         {homeConfig.heroBgImage && (
           <motion.div style={{ y: heroY }} className="absolute inset-0 pointer-events-none">
-            <img
-              src={homeConfig.heroBgImage}
-              alt="Hero"
-              className="w-full h-full object-cover opacity-20"
-            />
-            <div className="absolute inset-0 bg-gradient-to-b from-background/20 via-background/40 to-background" />
+            <img src={homeConfig.heroBgImage} alt="Hero" className="w-full h-full object-cover opacity-15" />
+            <div className="absolute inset-0 bg-gradient-to-b from-background/30 via-background/50 to-background" />
           </motion.div>
         )}
 
-        <motion.div style={{ y: heroY, opacity: heroOpacity }} className="container px-4 md:px-6 relative z-10">
-          <RevealSection className="flex flex-col items-center text-center max-w-5xl mx-auto space-y-8">
+        <motion.div style={{ opacity: heroOpacity }} className="relative z-10 flex flex-col items-center gap-10 pt-8">
+
+          {/* Text + CTAs */}
+          <RevealSection className="flex flex-col items-center text-center max-w-4xl mx-auto px-4 space-y-6">
             <motion.span variants={fadeUp} className="inline-flex items-center gap-2 px-4 py-2 bg-foreground/5 border border-foreground/10 rounded-full text-sm font-medium">
               <Sparkles className="h-3.5 w-3.5" />
               Nueva Colección 2024
             </motion.span>
 
-            <motion.h1 variants={fadeUp} className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tight leading-[0.9] text-balance">
+            <motion.h1 variants={fadeUp} className="text-4xl md:text-6xl lg:text-7xl font-black tracking-tight leading-[0.9] text-balance">
               {homeConfig.heroTitle.split(" ").slice(0, 4).join(" ")}
-              <span className="block text-foreground/60 mt-2">
+              <span className="block text-foreground/55 mt-1">
                 {homeConfig.heroTitle.split(" ").slice(4).join(" ")}
               </span>
             </motion.h1>
 
-            <motion.p variants={fadeUp} className="text-lg md:text-xl text-muted-foreground max-w-2xl text-pretty leading-relaxed">
+            <motion.p variants={fadeUp} className="text-base md:text-lg text-muted-foreground max-w-xl text-pretty">
               {homeConfig.heroSubtitle}
             </motion.p>
 
-            <motion.div variants={fadeUp} className="flex flex-col sm:flex-row gap-4 pt-2">
-              <Button
-                size="lg"
-                onClick={handleShopNow}
-                className="gap-2 h-13 px-8 text-base rounded-xl shadow-lg shadow-foreground/10 hover:shadow-foreground/20 transition-shadow"
-              >
-                {homeConfig.heroCTAText}
-                <ArrowRight className="h-4 w-4" />
+            <motion.div variants={fadeUp} className="flex flex-col sm:flex-row gap-3">
+              <Button size="lg" onClick={handleShopNow} className="gap-2 px-8 rounded-xl">
+                {homeConfig.heroCTAText} <ArrowRight className="h-4 w-4" />
               </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                onClick={() => { setCurrentView("catalog"); setCategoryFilter("anime") }}
-                className="h-13 px-8 text-base rounded-xl"
-              >
+              <Button size="lg" variant="outline" onClick={() => { setCurrentView("catalog"); setCategoryFilter("anime") }} className="px-8 rounded-xl">
                 Ver Anime
               </Button>
             </motion.div>
 
-            {/* Social proof mini */}
-            <motion.div variants={fadeUp} className="flex items-center gap-2 text-sm text-muted-foreground pt-2">
+            <motion.div variants={fadeUp} className="flex items-center gap-2 text-sm text-muted-foreground">
               <div className="flex -space-x-1">
                 {["#e87040","#6366f1","#10b981","#f59e0b"].map((c) => (
-                  <div key={c} className="w-6 h-6 rounded-full border-2 border-background" style={{ backgroundColor: c }} />
+                  <div key={c} className="w-5 h-5 rounded-full border-2 border-background" style={{ backgroundColor: c }} />
                 ))}
               </div>
               <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
               <span><strong className="text-foreground">+200 fans</strong> ya tienen el suyo</span>
             </motion.div>
           </RevealSection>
+
+          {/* Coverflow carousel — visible sin scroll */}
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+            className="w-full"
+          >
+            <ImmersiveCarousel />
+          </motion.div>
+
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.9 }}
+            className="text-xs text-muted-foreground/60 md:hidden"
+          >
+            Toca el centro para ver detalles
+          </motion.p>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.9 }}
+            className="text-xs text-muted-foreground/60 hidden md:block"
+          >
+            Haz clic en el centro para detalles · Las laterales avanzan el carrusel
+          </motion.p>
+
         </motion.div>
 
         {/* Scroll hint */}
         <motion.div
           animate={{ y: [0, 8, 0] }}
           transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-          className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 text-muted-foreground/50"
+          className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 text-muted-foreground/40"
         >
           <div className="w-5 h-8 border border-muted-foreground/30 rounded-full flex justify-center pt-1.5">
-            <div className="w-1 h-1.5 bg-muted-foreground/40 rounded-full" />
+            <div className="w-1 h-1.5 bg-muted-foreground/30 rounded-full" />
           </div>
         </motion.div>
       </section>
@@ -158,50 +173,6 @@ export function HomeView() {
         </section>
       </RevealSection>
 
-      {/* ── FEATURED CAROUSEL ─────────────────────────────── */}
-      <section className="py-24">
-        <div className="container px-4 md:px-6">
-          <RevealSection className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-12">
-            <div>
-              <motion.p variants={fadeUp} className="text-sm font-medium text-muted-foreground uppercase tracking-widest mb-2">
-                Colección Destacada
-              </motion.p>
-              <motion.h2 variants={fadeUp} className="text-4xl md:text-5xl font-black tracking-tight">
-                Los favoritos
-                <span className="block text-muted-foreground/60">de la comunidad</span>
-              </motion.h2>
-            </div>
-            <motion.div variants={fadeUp}>
-              <Button variant="ghost" onClick={handleShopNow} className="gap-2 text-base">
-                Ver catálogo completo <ArrowRight className="h-4 w-4" />
-              </Button>
-            </motion.div>
-          </RevealSection>
-
-          {isLoadingProducts ? (
-            <div className="flex gap-4 md:gap-6">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="flex-none w-[70vw] sm:w-[45vw] md:w-[20%]">
-                  <div className="aspect-[3/4] rounded-2xl bg-secondary/40 animate-pulse" />
-                  <div className="mt-3 space-y-2">
-                    <div className="h-4 bg-secondary/40 rounded animate-pulse w-3/4" />
-                    <div className="h-4 bg-secondary/40 rounded animate-pulse w-1/2" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <ImmersiveCarousel products={featuredProducts.length > 0 ? featuredProducts : products.slice(0, 5)} />
-          )}
-
-          <p className="text-center text-xs text-muted-foreground mt-6 md:hidden">
-            Mantén presionado una tarjeta para ver detalles rápidos
-          </p>
-          <p className="text-center text-xs text-muted-foreground mt-6 hidden md:block">
-            Pasa el cursor sobre un producto para ver detalles sin salir del home
-          </p>
-        </div>
-      </section>
 
       {/* ── CATEGORIES SPLIT ──────────────────────────────── */}
       <RevealSection>

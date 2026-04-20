@@ -1,30 +1,145 @@
 "use client"
 
-import { useState, useRef, useCallback, useEffect } from "react"
-import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from "framer-motion"
-import useEmblaCarousel from "embla-carousel-react"
-import Autoplay from "embla-carousel-autoplay"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { useState, useEffect, useCallback, useRef } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import { useStore, type Product } from "@/lib/store-context"
 import { ProductQuickPreview } from "./product-quick-preview"
 
-function TiltCard({ product, onQuickPreview }: { product: Product; onQuickPreview: (p: Product) => void }) {
-  const { setCurrentView } = useStore()
-  const cardRef = useRef<HTMLDivElement>(null)
-  const [activeDesignIdx, setActiveDesignIdx] = useState(0)
-  const [hoverTimeout, setHoverTimeout] = useState<ReturnType<typeof setTimeout> | null>(null)
-  const [showPreview, setShowPreview] = useState(false)
-  const [longPressTimeout, setLongPressTimeout] = useState<ReturnType<typeof setTimeout> | null>(null)
+// Config visual por posición relativa al centro (-2, -1, 0, 1, 2)
+const SLOT_CONFIG: Record<number, { x: number; rotateY: number; scale: number; opacity: number; zIndex: number }> = {
+  [-2]: { x: -340, rotateY: 52,  scale: 0.62, opacity: 0.55, zIndex: 1 },
+  [-1]: { x: -185, rotateY: 28,  scale: 0.80, opacity: 0.82, zIndex: 2 },
+  [0]:  { x: 0,    rotateY: 0,   scale: 1,    opacity: 1,    zIndex: 5 },
+  [1]:  { x: 185,  rotateY: -28, scale: 0.80, opacity: 0.82, zIndex: 2 },
+  [2]:  { x: 340,  rotateY: -52, scale: 0.62, opacity: 0.55, zIndex: 1 },
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+// Obtiene los 5 productos visibles (circular) para el índice activo
+function getVisibleSlots(products: Product[], activeIdx: number): Array<{ product: Product; offset: number }> {
+  const n = products.length
+  return [-2, -1, 0, 1, 2].map((offset) => ({
+    product: products[((activeIdx + offset) % n + n) % n],
+    offset,
+  }))
+}
+
+interface CoverflowCardProps {
+  product: Product
+  offset: number
+  onClick: () => void
+  isActive: boolean
+}
+
+function CoverflowCard({ product, offset, onClick, isActive }: CoverflowCardProps) {
+  const cfg = SLOT_CONFIG[offset]
+  const [imgIdx, setImgIdx] = useState(0)
+  const allImages = [product.image]
+
+  // Cycle image every 2.5s only for center card
+  useEffect(() => {
+    if (!isActive) { setImgIdx(0); return }
+    const t = setInterval(() => setImgIdx((i) => (i + 1) % allImages.length), 2500)
+    return () => clearInterval(t)
+  }, [isActive, allImages.length, product.id])
+
+  const formatPrice = (p: number) =>
+    new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(p)
+
+  return (
+    <motion.div
+      layout
+      animate={{
+        x: cfg.x,
+        rotateY: cfg.rotateY,
+        scale: cfg.scale,
+        opacity: cfg.opacity,
+        zIndex: cfg.zIndex,
+      }}
+      transition={{ type: "spring", stiffness: 280, damping: 32 }}
+      onClick={onClick}
+      className="absolute cursor-pointer select-none"
+      style={{ transformStyle: "preserve-3d", originX: "50%" }}
+    >
+      <div
+        className="relative overflow-hidden rounded-2xl bg-secondary/30 shadow-2xl"
+        style={{ width: 220, height: 290 }}
+      >
+        <AnimatePresence mode="crossfade">
+          <motion.img
+            key={`${product.id}-${imgIdx}`}
+            src={allImages[imgIdx]}
+            alt={product.name}
+            initial={{ opacity: 0, scale: 1.04 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.7 }}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        </AnimatePresence>
+
+        {/* Gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+
+        {/* Category badge */}
+        <span className="absolute top-3 left-3 px-2.5 py-1 bg-white/90 backdrop-blur-sm rounded-lg text-xs font-semibold capitalize text-foreground">
+          {product.category}
+        </span>
+
+        {/* Center card: show info */}
+        {isActive && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute bottom-0 inset-x-0 p-4 text-white"
+          >
+            <p className="font-bold text-base leading-tight">{product.name}</p>
+            <p className="text-sm text-white/80 mt-0.5">{formatPrice(product.basePrice)}</p>
+            <div className="flex gap-1.5 mt-2">
+              {product.colors.slice(0, 4).map((c) => (
+                <span key={c.name} className="w-3.5 h-3.5 rounded-full border border-white/40" style={{ backgroundColor: c.hex }} />
+              ))}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Side cards: subtle name */}
+        {!isActive && (
+          <div className="absolute bottom-3 inset-x-0 px-3">
+            <p className="text-white/80 text-xs font-medium truncate text-center">{product.name}</p>
+          </div>
+        )}
+      </div>
+    </motion.div>
+  )
+}
+
+interface CoverflowCarouselProps {
+  autoplay?: boolean
+  intervalMs?: number
+}
+
+export function ImmersiveCarousel({ autoplay = true, intervalMs = 3000 }: CoverflowCarouselProps) {
+  const { products } = useStore()
+  const [shuffled, setShuffled] = useState<Product[]>([])
+  const [activeIdx, setActiveIdx] = useState(0)
+  const [previewProduct, setPreviewProduct] = useState<Product | null>(null)
   const [isMobile, setIsMobile] = useState(false)
+  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const autoplayRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const mouseX = useMotionValue(0)
-  const mouseY = useMotionValue(0)
-  const rotateX = useSpring(useTransform(mouseY, [-0.5, 0.5], [8, -8]), { stiffness: 300, damping: 30 })
-  const rotateY = useSpring(useTransform(mouseX, [-0.5, 0.5], [-8, 8]), { stiffness: 300, damping: 30 })
-  const scale = useSpring(1, { stiffness: 300, damping: 30 })
-
-  // Cycle through product images every 2.5s
-  const allImages = [product.image, ...product.designs.map((d) => d.image).filter((img) => img.startsWith("http"))]
+  // Shuffle on mount
+  useEffect(() => {
+    if (products.length > 0) setShuffled(shuffle(products))
+  }, [products])
 
   useEffect(() => {
     setIsMobile(window.innerWidth < 768)
@@ -33,180 +148,101 @@ function TiltCard({ product, onQuickPreview }: { product: Product; onQuickPrevie
     return () => window.removeEventListener("resize", handler)
   }, [])
 
+  // Autoplay
   useEffect(() => {
-    if (allImages.length <= 1) return
-    const interval = setInterval(() => {
-      setActiveDesignIdx((i) => (i + 1) % allImages.length)
-    }, 2500)
-    return () => clearInterval(interval)
-  }, [allImages.length])
+    if (!autoplay || shuffled.length === 0) return
+    autoplayRef.current = setInterval(() => {
+      setActiveIdx((i) => (i + 1) % shuffled.length)
+    }, intervalMs)
+    return () => { if (autoplayRef.current) clearInterval(autoplayRef.current) }
+  }, [autoplay, intervalMs, shuffled.length])
 
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = cardRef.current?.getBoundingClientRect()
-    if (!rect) return
-    mouseX.set((e.clientX - rect.left) / rect.width - 0.5)
-    mouseY.set((e.clientY - rect.top) / rect.height - 0.5)
-  }, [mouseX, mouseY])
+  const goTo = useCallback((idx: number) => {
+    if (autoplayRef.current) clearInterval(autoplayRef.current)
+    setActiveIdx(((idx % shuffled.length) + shuffled.length) % shuffled.length)
+    // Restart autoplay after manual nav
+    if (autoplay) {
+      autoplayRef.current = setInterval(() => {
+        setActiveIdx((i) => (i + 1) % shuffled.length)
+      }, intervalMs)
+    }
+  }, [shuffled.length, autoplay, intervalMs])
 
-  const handleMouseEnter = useCallback(() => {
-    scale.set(1.03)
-    const t = setTimeout(() => setShowPreview(true), 450)
-    setHoverTimeout(t)
-  }, [scale])
+  const handleCardClick = useCallback((product: Product, offset: number) => {
+    if (offset === 0) {
+      // Center card: open preview or navigate
+      if (isMobile) {
+        setPreviewProduct(product)
+      } else {
+        setPreviewProduct(product)
+      }
+    } else {
+      // Side card: bring to center
+      goTo(activeIdx + offset)
+    }
+  }, [activeIdx, goTo, isMobile])
 
-  const handleMouseLeave = useCallback(() => {
-    mouseX.set(0)
-    mouseY.set(0)
-    scale.set(1)
-    if (hoverTimeout) clearTimeout(hoverTimeout)
-    setShowPreview(false)
-  }, [mouseX, mouseY, scale, hoverTimeout])
-
-  const handleTouchStart = useCallback(() => {
-    const t = setTimeout(() => {
+  // Long press for mobile
+  const handleTouchStart = useCallback((product: Product, offset: number) => {
+    longPressRef.current = setTimeout(() => {
       if (navigator.vibrate) navigator.vibrate(50)
-      onQuickPreview(product)
-    }, 600)
-    setLongPressTimeout(t)
-  }, [product, onQuickPreview])
+      if (offset === 0) setPreviewProduct(product)
+      else goTo(activeIdx + offset)
+    }, 400)
+  }, [activeIdx, goTo])
 
   const handleTouchEnd = useCallback(() => {
-    if (longPressTimeout) clearTimeout(longPressTimeout)
-  }, [longPressTimeout])
+    if (longPressRef.current) clearTimeout(longPressRef.current)
+  }, [])
 
-  const formatPrice = (p: number) =>
-    new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(p)
+  if (shuffled.length === 0) {
+    return (
+      <div className="flex justify-center gap-4">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="rounded-2xl bg-secondary/30 animate-pulse" style={{ width: 220 * [0.62, 0.80, 1, 0.80, 0.62][i], height: 290 * [0.62, 0.80, 1, 0.80, 0.62][i] }} />
+        ))}
+      </div>
+    )
+  }
+
+  const visibleSlots = getVisibleSlots(shuffled, activeIdx)
 
   return (
-    <div className="relative" style={{ perspective: 1000 }}>
-      <motion.div
-        ref={cardRef}
-        style={{ rotateX, rotateY, scale, transformStyle: "preserve-3d" }}
-        onMouseMove={handleMouseMove}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        onTouchMove={handleTouchEnd}
-        onClick={() => !isMobile && setCurrentView(`product-${product.id}`)}
-        className="cursor-pointer select-none"
+    <div className="relative flex flex-col items-center gap-6">
+      {/* Coverflow stage */}
+      <div
+        className="relative w-full flex items-center justify-center"
+        style={{ perspective: "1100px", height: 320, perspectiveOrigin: "50% 40%" }}
       >
-        {/* Card image */}
-        <div className="relative aspect-[3/4] overflow-hidden rounded-2xl bg-secondary/30">
-          <AnimatePresence mode="crossfade">
-            <motion.img
-              key={activeDesignIdx}
-              src={allImages[activeDesignIdx]}
-              alt={product.name}
-              initial={{ opacity: 0, scale: 1.05 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.6 }}
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-          </AnimatePresence>
-
-          {/* Shimmer overlay on hover */}
-          <motion.div
-            className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/10 to-white/0 pointer-events-none"
-            style={{ opacity: useTransform(scale, [1, 1.03], [0, 1]) }}
+        {visibleSlots.map(({ product, offset }) => (
+          <CoverflowCard
+            key={`${product.id}-${offset}`}
+            product={product}
+            offset={offset}
+            isActive={offset === 0}
+            onClick={() => handleCardClick(product, offset)}
           />
-
-          {/* Category badge */}
-          <span className="absolute top-3 left-3 px-2.5 py-1 bg-background/90 backdrop-blur-sm rounded-lg text-xs font-semibold capitalize z-10">
-            {product.category}
-          </span>
-
-          {/* Image dots indicator */}
-          {allImages.length > 1 && (
-            <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1 z-10">
-              {allImages.slice(0, 4).map((_, i) => (
-                <div
-                  key={i}
-                  className={`h-1 rounded-full transition-all duration-300 ${activeDesignIdx === i ? "w-4 bg-white" : "w-1 bg-white/50"}`}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Info */}
-        <div className="mt-3 space-y-1 px-1">
-          <h3 className="font-semibold text-sm leading-tight">{product.name}</h3>
-          <p className="font-bold">{formatPrice(product.basePrice)}</p>
-          <div className="flex gap-1.5 pt-0.5">
-            {product.colors.slice(0, 5).map((c) => (
-              <span
-                key={c.name}
-                className="w-3.5 h-3.5 rounded-full border border-border/50"
-                style={{ backgroundColor: c.hex }}
-                title={c.name}
-              />
-            ))}
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Desktop quick preview */}
-      <AnimatePresence>
-        {showPreview && !isMobile && (
-          <ProductQuickPreview product={product} onClose={() => setShowPreview(false)} />
-        )}
-      </AnimatePresence>
-    </div>
-  )
-}
-
-export function ImmersiveCarousel({ products }: { products: Product[] }) {
-  const [mobilePreviewProduct, setMobilePreviewProduct] = useState<Product | null>(null)
-  const [emblaRef, emblaApi] = useEmblaCarousel(
-    { loop: true, align: "start", slidesToScroll: 1 },
-    [Autoplay({ delay: 4000, stopOnInteraction: true })]
-  )
-
-  const scrollPrev = useCallback(() => emblaApi?.scrollPrev(), [emblaApi])
-  const scrollNext = useCallback(() => emblaApi?.scrollNext(), [emblaApi])
-
-  if (!products.length) return null
-
-  return (
-    <div className="relative">
-      {/* Navigation arrows */}
-      <button
-        onClick={scrollPrev}
-        className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-20 w-10 h-10 rounded-full bg-background border shadow-lg flex items-center justify-center hover:bg-secondary transition-colors hidden md:flex"
-      >
-        <ChevronLeft className="h-4 w-4" />
-      </button>
-      <button
-        onClick={scrollNext}
-        className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-20 w-10 h-10 rounded-full bg-background border shadow-lg flex items-center justify-center hover:bg-secondary transition-colors hidden md:flex"
-      >
-        <ChevronRight className="h-4 w-4" />
-      </button>
-
-      {/* Carousel */}
-      <div ref={emblaRef} className="overflow-hidden">
-        <div className="flex gap-4 md:gap-6">
-          {products.map((product) => (
-            <div
-              key={product.id}
-              className="flex-none w-[70vw] sm:w-[45vw] md:w-[calc(20%-12px)] lg:w-[calc(20%-14px)]"
-              style={{ minWidth: 0 }}
-            >
-              <TiltCard product={product} onQuickPreview={setMobilePreviewProduct} />
-            </div>
-          ))}
-        </div>
+        ))}
       </div>
 
-      {/* Mobile long-press preview */}
+      {/* Dot navigation */}
+      <div className="flex gap-2 mt-2">
+        {shuffled.map((_, i) => (
+          <button
+            key={i}
+            onClick={() => goTo(i)}
+            className={`h-1.5 rounded-full transition-all duration-300 ${i === activeIdx ? "w-6 bg-foreground" : "w-1.5 bg-foreground/25"}`}
+          />
+        ))}
+      </div>
+
+      {/* Quick preview */}
       <AnimatePresence>
-        {mobilePreviewProduct && (
+        {previewProduct && (
           <ProductQuickPreview
-            product={mobilePreviewProduct}
-            onClose={() => setMobilePreviewProduct(null)}
-            isMobile
+            product={previewProduct}
+            onClose={() => setPreviewProduct(null)}
+            isMobile={isMobile}
           />
         )}
       </AnimatePresence>
