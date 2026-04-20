@@ -30,6 +30,7 @@ export function Navbar() {
     removeFromCart,
     updateQuantity,
     isLoggedIn,
+    isAdmin,
     user,
     logout,
     setCurrentView,
@@ -236,10 +237,12 @@ export function Navbar() {
                   <Package className="mr-2 h-4 w-4" />
                   Mis Pedidos
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setCurrentView("admin")}>
-                  <Settings className="mr-2 h-4 w-4" />
-                  Admin Panel
-                </DropdownMenuItem>
+                {isAdmin && (
+                  <DropdownMenuItem onClick={() => setCurrentView("admin")}>
+                    <Settings className="mr-2 h-4 w-4" />
+                    Admin Panel
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={logout}>
                   <LogOut className="mr-2 h-4 w-4" />
