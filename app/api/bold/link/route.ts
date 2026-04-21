@@ -10,8 +10,6 @@ const CartItemSchema = z.object({
   size: z.string(),
   colorName: z.string(),
   colorHex: z.string(),
-  designId: z.string(),
-  designName: z.string(),
   quantity: z.number().int().positive(),
 })
 
@@ -99,7 +97,6 @@ export async function POST(request: Request) {
         image: item.productImage,
         size: item.size,
         color: { name: item.colorName, hex: item.colorHex },
-        design: { id: item.designId, name: item.designName },
       },
     }))
 

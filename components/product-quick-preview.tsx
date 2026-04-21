@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { X, ShoppingBag, Palette } from "lucide-react"
+import { X, ShoppingBag, ZoomIn } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useStore, type Product } from "@/lib/store-context"
 
@@ -19,7 +19,7 @@ export function ProductQuickPreview({ product, onClose, isMobile = false }: Prod
   const [activeImageIdx, setActiveImageIdx] = useState(0)
   const [added, setAdded] = useState(false)
 
-  const images = [product.image, ...product.designs.map((d) => d.image).filter((img) => img.startsWith("http"))]
+  const images = [product.image, ...product.colors.map((c) => c.image).filter((img): img is string => !!img && img.startsWith("http"))]
   const activeImage = images[activeImageIdx] ?? product.image
 
   const formatPrice = (p: number) =>
@@ -31,7 +31,6 @@ export function ProductQuickPreview({ product, onClose, isMobile = false }: Prod
       product,
       size: selectedSize,
       color: selectedColor,
-      design: product.designs[0],
       quantity: 1,
     })
     setAdded(true)
@@ -111,7 +110,7 @@ export function ProductQuickPreview({ product, onClose, isMobile = false }: Prod
             className="w-full gap-2"
             onClick={() => { setCurrentView(`product-${product.id}`); onClose() }}
           >
-            <Palette className="h-4 w-4" />
+            <ZoomIn className="h-4 w-4" />
             Personalizar
           </Button>
         </div>

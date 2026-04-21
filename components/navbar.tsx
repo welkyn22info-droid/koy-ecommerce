@@ -154,9 +154,6 @@ export function Navbar() {
                           <p className="text-xs text-muted-foreground">
                             {item.size} / {item.color.name}
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            {item.design.name}
-                          </p>
                           <div className="flex items-center gap-2 mt-2">
                             <button
                               onClick={() =>

@@ -5,14 +5,19 @@ import { supabase, type DbProduct, type DbHomeConfig } from "./supabase"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
 
 // Types
+export interface Color {
+  name: string
+  hex: string
+  image?: string
+}
+
 export interface Product {
   id: string
   name: string
   basePrice: number
   category: "anime" | "cine"
   sizes: string[]
-  colors: { name: string; hex: string }[]
-  designs: { id: string; name: string; image: string }[]
+  colors: Color[]
   image: string
   featured?: boolean
   featuredOrder?: number | null
@@ -32,8 +37,7 @@ export interface CartItem {
   id: string
   product: Product
   size: string
-  color: { name: string; hex: string }
-  design: { id: string; name: string; image: string }
+  color: Color
   quantity: number
 }
 
@@ -60,7 +64,7 @@ const DEFAULT_HOME_CONFIG: HomeConfig = {
   heroCTALink: "catalog",
   heroBgImage: "",
   theme: "default",
-  featuredProductIds: ["1", "2", "3", "4", "5"],
+  featuredProductIds: [],
 }
 
 function dbProductToProduct(p: DbProduct): Product {
@@ -71,7 +75,6 @@ function dbProductToProduct(p: DbProduct): Product {
     category: p.category,
     sizes: p.sizes,
     colors: p.colors,
-    designs: p.designs,
     image: p.image,
     featured: p.featured,
     featuredOrder: p.featured_order,
@@ -129,6 +132,9 @@ interface StoreContextType {
   isPublishing: boolean
   isLoadingProducts: boolean
   featuredProducts: Product[]
+  createProduct: (data: Omit<Product, "id" | "featured" | "featuredOrder">) => Promise<{ error?: string }>
+  updateProduct: (id: string, data: Partial<Product>) => Promise<{ error?: string }>
+  deleteProduct: (id: string) => Promise<{ error?: string }>
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined)
@@ -194,10 +200,49 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return ia - ib
     })
 
+  const createProduct = useCallback(async (data: Omit<Product, "id" | "featured" | "featuredOrder">): Promise<{ error?: string }> => {
+    const { error } = await supabase.from("products").insert({
+      id: crypto.randomUUID(),
+      name: data.name,
+      base_price: data.basePrice,
+      category: data.category,
+      sizes: data.sizes,
+      colors: data.colors,
+      designs: [],
+      image: data.image,
+      featured: false,
+    })
+    if (error) return { error: error.message }
+    const { data: fresh } = await supabase.from("products").select("*").order("featured_order", { ascending: true, nullsFirst: false })
+    if (fresh) setProducts(fresh.map(dbProductToProduct))
+    return {}
+  }, [])
+
+  const updateProduct = useCallback(async (id: string, data: Partial<Product>): Promise<{ error?: string }> => {
+    const dbData: Record<string, unknown> = {}
+    if (data.name !== undefined) dbData.name = data.name
+    if (data.basePrice !== undefined) dbData.base_price = data.basePrice
+    if (data.category !== undefined) dbData.category = data.category
+    if (data.sizes !== undefined) dbData.sizes = data.sizes
+    if (data.colors !== undefined) dbData.colors = data.colors
+    if (data.image !== undefined) dbData.image = data.image
+    const { error } = await supabase.from("products").update(dbData).eq("id", id)
+    if (error) return { error: error.message }
+    setProducts((prev) => prev.map((p) => p.id === id ? { ...p, ...data } : p))
+    return {}
+  }, [])
+
+  const deleteProduct = useCallback(async (id: string): Promise<{ error?: string }> => {
+    const { error } = await supabase.from("products").delete().eq("id", id)
+    if (error) return { error: error.message }
+    setProducts((prev) => prev.filter((p) => p.id !== id))
+    return {}
+  }, [])
+
   const addToCart = (item: CartItem) => {
     setCart((prev) => {
       const idx = prev.findIndex(
-        (i) => i.product.id === item.product.id && i.size === item.size && i.color.name === item.color.name && i.design.id === item.design.id
+        (i) => i.product.id === item.product.id && i.size === item.size && i.color.name === item.color.name
       )
       if (idx > -1) {
         const updated = [...prev]
@@ -288,6 +333,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       orders,
       homeConfig, updateHomeConfig, publishHomeConfig, isPublishing,
       isLoadingProducts, featuredProducts,
+      createProduct, updateProduct, deleteProduct,
     }}>
       {children}
     </StoreContext.Provider>

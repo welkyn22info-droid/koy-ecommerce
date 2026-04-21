@@ -11,8 +11,8 @@ export type DbProduct = {
   base_price: number
   category: "anime" | "cine"
   sizes: string[]
-  colors: { name: string; hex: string }[]
-  designs: { id: string; name: string; image: string }[]
+  colors: { name: string; hex: string; image?: string }[]
+  designs: unknown[]
   image: string
   featured: boolean
   featured_order: number | null

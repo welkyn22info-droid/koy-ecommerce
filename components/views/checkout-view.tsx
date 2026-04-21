@@ -54,8 +54,6 @@ export function CheckoutView() {
             size: item.size,
             colorName: item.color.name,
             colorHex: item.color.hex,
-            designId: item.design.id,
-            designName: item.design.name,
             quantity: item.quantity,
           })),
         }),
@@ -201,7 +199,7 @@ export function CheckoutView() {
                     <img src={item.product.image} alt={item.product.name} className="w-16 h-16 rounded-lg object-cover" />
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm truncate">{item.product.name}</p>
-                      <p className="text-xs text-muted-foreground">{item.size} / {item.color.name} / {item.design.name}</p>
+                      <p className="text-xs text-muted-foreground">{item.size} / {item.color.name}</p>
                       <p className="text-xs text-muted-foreground">Cant: {item.quantity}</p>
                     </div>
                     <p className="font-medium text-sm">{formatPrice(item.product.basePrice * item.quantity)}</p>

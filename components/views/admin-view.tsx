@@ -2,8 +2,8 @@
 
 import { useState, useRef } from "react"
 import {
-  LayoutDashboard, Package, Palette, ShoppingCart, ArrowLeft, Plus,
-  Search, MoreHorizontal, Edit, Trash2, Upload, X, Clock, Truck,
+  LayoutDashboard, Package, ShoppingCart, ArrowLeft, Plus,
+  Search, MoreHorizontal, Edit, Trash2, X, Clock, Truck,
   CheckCircle, Home, GripVertical, ImageIcon, Star, StarOff, Loader2,
 } from "lucide-react"
 import { motion, AnimatePresence, Reorder } from "framer-motion"
@@ -23,11 +23,39 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
-import { useStore, type Order } from "@/lib/store-context"
+import { useStore, type Order, type Color } from "@/lib/store-context"
 import { uploadImageToCloudinary } from "@/lib/supabase"
 import { cn } from "@/lib/utils"
 
-type AdminTab = "dashboard" | "products" | "designs" | "orders" | "home-cms"
+type AdminTab = "dashboard" | "products" | "orders" | "home-cms"
+
+const SIZES_OPTIONS = ["XS", "S", "M", "L", "XL", "XXL"]
+
+interface ProductForm {
+  name: string
+  price: string
+  category: "anime" | "cine"
+  sizes: string[]
+  colors: Color[]
+  image: string
+}
+
+interface ColorDraft {
+  name: string
+  hex: string
+  image: string
+}
+
+const EMPTY_FORM: ProductForm = {
+  name: "",
+  price: "",
+  category: "anime",
+  sizes: ["S", "M", "L", "XL"],
+  colors: [],
+  image: "",
+}
+
+const EMPTY_COLOR: ColorDraft = { name: "", hex: "#1a1a1a", image: "" }
 
 // ── Image Uploader ────────────────────────────────────────────────────────────
 function ImageUploader({ value, onChange, label }: { value: string; onChange: (url: string) => void; label: string }) {
@@ -321,32 +349,97 @@ function HomeCMSView() {
 
 // ── Main Admin View ───────────────────────────────────────────────────────────
 export function AdminView() {
-  const { setCurrentView, products, orders, updateOrderStatus } = useStore()
+  const { setCurrentView, products, orders, updateOrderStatus, createProduct, updateProduct, deleteProduct } = useStore()
   const [activeTab, setActiveTab] = useState<AdminTab>("dashboard")
   const [showProductForm, setShowProductForm] = useState(false)
-  const [showDesignForm, setShowDesignForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [form, setForm] = useState<ProductForm>(EMPTY_FORM)
+  const [colorDraft, setColorDraft] = useState<ColorDraft>(EMPTY_COLOR)
+  const [isSaving, setIsSaving] = useState(false)
 
   const formatPrice = (price: number) =>
     new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(price)
 
   const sidebarItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { id: "products", label: "Buzos Base", icon: Package },
-    { id: "designs", label: "Diseños", icon: Palette },
+    { id: "products", label: "Buzos", icon: Package },
     { id: "orders", label: "Órdenes", icon: ShoppingCart },
     { id: "home-cms", label: "Gestión del Home", icon: Home },
   ]
 
-  const mockDesigns = [
-    { id: "d1", name: "Haku Dragon", category: "Anime", image: "🐉" },
-    { id: "d2", name: "No Face", category: "Anime", image: "👻" },
-    { id: "d3", name: "Mia Wallace", category: "Cine", image: "💃" },
-    { id: "d4", name: "Vincent & Jules", category: "Cine", image: "🔫" },
-    { id: "d5", name: "Survey Corps", category: "Anime", image: "⚔️" },
-    { id: "d6", name: "Eren Titan", category: "Anime", image: "👹" },
-    { id: "d7", name: "Black Hole", category: "Cine", image: "🌀" },
-    { id: "d8", name: "Don Corleone", category: "Cine", image: "🎩" },
-  ]
+  const openNewForm = () => {
+    setForm(EMPTY_FORM)
+    setColorDraft(EMPTY_COLOR)
+    setEditingId(null)
+    setShowProductForm(true)
+  }
+
+  const openEditForm = (product: typeof products[0]) => {
+    setForm({
+      name: product.name,
+      price: String(product.basePrice),
+      category: product.category,
+      sizes: product.sizes,
+      colors: product.colors,
+      image: product.image,
+    })
+    setColorDraft(EMPTY_COLOR)
+    setEditingId(product.id)
+    setShowProductForm(true)
+  }
+
+  const closeForm = () => {
+    setShowProductForm(false)
+    setEditingId(null)
+  }
+
+  const toggleSize = (size: string) => {
+    setForm((f) => ({
+      ...f,
+      sizes: f.sizes.includes(size) ? f.sizes.filter((s) => s !== size) : [...f.sizes, size],
+    }))
+  }
+
+  const addColor = () => {
+    if (!colorDraft.name.trim()) return
+    setForm((f) => ({ ...f, colors: [...f.colors, { name: colorDraft.name, hex: colorDraft.hex, image: colorDraft.image || undefined }] }))
+    setColorDraft(EMPTY_COLOR)
+  }
+
+  const removeColor = (idx: number) => {
+    setForm((f) => ({ ...f, colors: f.colors.filter((_, i) => i !== idx) }))
+  }
+
+  const handleSave = async () => {
+    if (!form.name.trim() || !form.price || form.sizes.length === 0) {
+      toast.error("Nombre, precio y al menos una talla son requeridos")
+      return
+    }
+    setIsSaving(true)
+    const data = {
+      name: form.name.trim(),
+      basePrice: parseInt(form.price),
+      category: form.category,
+      sizes: form.sizes,
+      colors: form.colors,
+      image: form.image,
+    }
+    const result = editingId ? await updateProduct(editingId, data) : await createProduct(data)
+    setIsSaving(false)
+    if (result.error) {
+      toast.error(result.error)
+    } else {
+      toast.success(editingId ? "Buzo actualizado" : "Buzo creado")
+      closeForm()
+    }
+  }
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`¿Eliminar "${name}"? Esta acción no se puede deshacer.`)) return
+    const result = await deleteProduct(id)
+    if (result.error) toast.error(result.error)
+    else toast.success("Buzo eliminado")
+  }
 
   const getStatusBadge = (status: Order["status"]) => {
     const styles = { pending: "bg-yellow-100 text-yellow-700", production: "bg-blue-100 text-blue-700", shipped: "bg-green-100 text-green-700" }
@@ -476,99 +569,45 @@ export function AdminView() {
             {activeTab === "products" && (
               <div className="space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <h2 className="text-2xl font-bold">Gestión de Buzos Base</h2>
-                  <Button onClick={() => setShowProductForm(!showProductForm)} className="gap-2">
-                    {showProductForm ? <><X className="h-4 w-4" />Cancelar</> : <><Plus className="h-4 w-4" />Nuevo Buzo</>}
-                  </Button>
+                  <h2 className="text-2xl font-bold">Buzos</h2>
+                  {!showProductForm && (
+                    <Button onClick={openNewForm} className="gap-2">
+                      <Plus className="h-4 w-4" />Nuevo Buzo
+                    </Button>
+                  )}
                 </div>
-                {showProductForm && (
-                  <div className="p-6 border rounded-xl space-y-4">
-                    <h3 className="font-semibold">Agregar Nuevo Buzo</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2"><Label>Nombre</Label><Input placeholder="Ej: Naruto Shippuden" /></div>
-                      <div className="space-y-2"><Label>Precio Base</Label><Input type="number" placeholder="89000" /></div>
-                      <div className="space-y-2">
-                        <Label>Categoría</Label>
-                        <Select>
-                          <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="anime">Anime</SelectItem>
-                            <SelectItem value="cine">Cine</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2"><Label>Tallas Disponibles</Label><Input placeholder="S, M, L, XL" /></div>
-                    </div>
-                    <ImageUploader label="Imagen Base del Buzo" value="" onChange={() => {}} />
-                    <div className="flex gap-3">
-                      <Button>Guardar Buzo</Button>
-                      <Button variant="outline" onClick={() => setShowProductForm(false)}>Cancelar</Button>
-                    </div>
-                  </div>
-                )}
-                <div className="border rounded-xl overflow-hidden">
-                  <div className="p-4 border-b bg-secondary/30 flex items-center gap-4">
-                    <div className="relative flex-1 max-w-sm">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input placeholder="Buscar productos..." className="pl-9" />
-                    </div>
-                  </div>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Imagen</TableHead>
-                        <TableHead>Nombre</TableHead>
-                        <TableHead>Categoría</TableHead>
-                        <TableHead>Precio</TableHead>
-                        <TableHead>Tallas</TableHead>
-                        <TableHead className="w-12"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {products.map((product) => (
-                        <TableRow key={product.id}>
-                          <TableCell><img src={product.image} alt={product.name} className="w-12 h-12 rounded-lg object-cover" /></TableCell>
-                          <TableCell className="font-medium">{product.name}</TableCell>
-                          <TableCell className="capitalize">{product.category}</TableCell>
-                          <TableCell>{formatPrice(product.basePrice)}</TableCell>
-                          <TableCell>{product.sizes.join(", ")}</TableCell>
-                          <TableCell>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem><Edit className="h-4 w-4 mr-2" />Editar</DropdownMenuItem>
-                                <DropdownMenuItem className="text-destructive"><Trash2 className="h-4 w-4 mr-2" />Eliminar</DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-            )}
 
-            {/* Designs */}
-            {activeTab === "designs" && (
-              <div className="space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <h2 className="text-2xl font-bold">Gestión de Diseños</h2>
-                  <Button onClick={() => setShowDesignForm(!showDesignForm)} className="gap-2">
-                    {showDesignForm ? <><X className="h-4 w-4" />Cancelar</> : <><Plus className="h-4 w-4" />Nuevo Diseño</>}
-                  </Button>
-                </div>
-                {showDesignForm && (
-                  <div className="p-6 border rounded-xl space-y-4">
-                    <h3 className="font-semibold">Agregar Nuevo Diseño</h3>
+                {/* Form */}
+                {showProductForm && (
+                  <div className="p-6 border rounded-xl space-y-6 bg-secondary/10">
+                    <h3 className="font-semibold text-lg">{editingId ? "Editar Buzo" : "Nuevo Buzo"}</h3>
+
+                    {/* Basic Info */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2"><Label>Nombre del Diseño</Label><Input placeholder="Ej: Eren Titan" /></div>
                       <div className="space-y-2">
-                        <Label>Categoría</Label>
-                        <Select>
-                          <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                        <Label>Nombre del Buzo *</Label>
+                        <Input
+                          placeholder="Ej: Naruto Shippuden Oversized"
+                          value={form.name}
+                          onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Precio (COP) *</Label>
+                        <Input
+                          type="number"
+                          placeholder="89000"
+                          value={form.price}
+                          onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Categoría *</Label>
+                        <Select
+                          value={form.category}
+                          onValueChange={(v) => setForm((f) => ({ ...f, category: v as "anime" | "cine" }))}
+                        >
+                          <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="anime">Anime</SelectItem>
                             <SelectItem value="cine">Cine</SelectItem>
@@ -576,30 +615,192 @@ export function AdminView() {
                         </Select>
                       </div>
                     </div>
-                    <ImageUploader label="Miniatura del Diseño" value="" onChange={() => {}} />
-                    <div className="flex gap-3">
-                      <Button>Guardar Diseño</Button>
-                      <Button variant="outline" onClick={() => setShowDesignForm(false)}>Cancelar</Button>
+
+                    {/* Sizes */}
+                    <div className="space-y-2">
+                      <Label>Tallas disponibles *</Label>
+                      <div className="flex gap-2 flex-wrap">
+                        {SIZES_OPTIONS.map((size) => (
+                          <button
+                            key={size}
+                            type="button"
+                            onClick={() => toggleSize(size)}
+                            className={cn(
+                              "px-4 py-2 rounded-lg border-2 font-medium transition-all text-sm",
+                              form.sizes.includes(size)
+                                ? "border-foreground bg-foreground text-background"
+                                : "border-border hover:border-foreground/50"
+                            )}
+                          >
+                            {size}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Main image */}
+                    <ImageUploader
+                      label="Imagen principal del buzo (fallback si no hay imagen por color)"
+                      value={form.image}
+                      onChange={(url) => setForm((f) => ({ ...f, image: url }))}
+                    />
+
+                    {/* Colors */}
+                    <div className="space-y-3">
+                      <Label>Colores disponibles</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Agrega cada color con su imagen del buzo en ese color. Al elegir el color, el cliente verá esa imagen.
+                      </p>
+
+                      {/* Existing colors */}
+                      {form.colors.length > 0 && (
+                        <div className="space-y-2">
+                          {form.colors.map((c, idx) => (
+                            <div key={idx} className="flex items-center gap-3 p-3 bg-background border rounded-xl">
+                              <div className="w-8 h-8 rounded-full border flex-shrink-0" style={{ backgroundColor: c.hex }} />
+                              {c.image && (
+                                <img src={c.image} alt={c.name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+                              )}
+                              <span className="font-medium text-sm flex-1">{c.name}</span>
+                              <button
+                                onClick={() => removeColor(idx)}
+                                className="text-muted-foreground hover:text-destructive transition-colors"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Add new color */}
+                      <div className="p-4 border border-dashed rounded-xl space-y-3">
+                        <p className="text-sm font-medium text-muted-foreground">Agregar color</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Nombre del color</Label>
+                            <Input
+                              placeholder="Ej: Negro, Blanco, Gris"
+                              value={colorDraft.name}
+                              onChange={(e) => setColorDraft((c) => ({ ...c, name: e.target.value }))}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Color (hex)</Label>
+                            <div className="flex gap-2">
+                              <input
+                                type="color"
+                                value={colorDraft.hex}
+                                onChange={(e) => setColorDraft((c) => ({ ...c, hex: e.target.value }))}
+                                className="w-12 h-10 rounded border cursor-pointer"
+                              />
+                              <Input
+                                value={colorDraft.hex}
+                                onChange={(e) => setColorDraft((c) => ({ ...c, hex: e.target.value }))}
+                                placeholder="#1a1a1a"
+                                className="flex-1"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <ImageUploader
+                          label={`Foto del buzo en color ${colorDraft.name || "..."} (opcional)`}
+                          value={colorDraft.image}
+                          onChange={(url) => setColorDraft((c) => ({ ...c, image: url }))}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={addColor}
+                          disabled={!colorDraft.name.trim()}
+                          className="gap-2"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Agregar este color
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex gap-3 pt-2">
+                      <Button onClick={handleSave} disabled={isSaving} className="gap-2">
+                        {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                        {editingId ? "Guardar Cambios" : "Crear Buzo"}
+                      </Button>
+                      <Button variant="outline" onClick={closeForm}>Cancelar</Button>
                     </div>
                   </div>
                 )}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {mockDesigns.map((design) => (
-                    <div key={design.id} className="p-4 border rounded-xl space-y-3 group hover:border-foreground/50 transition-colors">
-                      <div className="aspect-square rounded-lg bg-secondary/50 flex items-center justify-center text-4xl">
-                        {design.image}
-                      </div>
-                      <div>
-                        <p className="font-medium">{design.name}</p>
-                        <p className="text-sm text-muted-foreground">{design.category}</p>
-                      </div>
-                      <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button size="sm" variant="outline" className="flex-1"><Edit className="h-3 w-3" /></Button>
-                        <Button size="sm" variant="outline" className="flex-1 text-destructive"><Trash2 className="h-3 w-3" /></Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+
+                {/* Product list */}
+                {products.length === 0 && !showProductForm ? (
+                  <div className="border border-dashed rounded-xl p-12 text-center">
+                    <Package className="h-12 w-12 mx-auto text-muted-foreground/40 mb-4" />
+                    <p className="text-muted-foreground mb-4">No hay buzos todavía</p>
+                    <Button onClick={openNewForm} className="gap-2">
+                      <Plus className="h-4 w-4" />Crear el primer buzo
+                    </Button>
+                  </div>
+                ) : !showProductForm && (
+                  <div className="border rounded-xl overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Imagen</TableHead>
+                          <TableHead>Nombre</TableHead>
+                          <TableHead>Categoría</TableHead>
+                          <TableHead>Precio</TableHead>
+                          <TableHead>Tallas</TableHead>
+                          <TableHead>Colores</TableHead>
+                          <TableHead className="w-12"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {products.map((product) => (
+                          <TableRow key={product.id}>
+                            <TableCell>
+                              <img src={product.image} alt={product.name} className="w-12 h-12 rounded-lg object-cover" />
+                            </TableCell>
+                            <TableCell className="font-medium">{product.name}</TableCell>
+                            <TableCell className="capitalize">{product.category}</TableCell>
+                            <TableCell>{formatPrice(product.basePrice)}</TableCell>
+                            <TableCell>{product.sizes.join(", ")}</TableCell>
+                            <TableCell>
+                              <div className="flex gap-1">
+                                {product.colors.map((c) => (
+                                  <div
+                                    key={c.name}
+                                    className="w-5 h-5 rounded-full border"
+                                    style={{ backgroundColor: c.hex }}
+                                    title={c.name}
+                                  />
+                                ))}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => openEditForm(product)}>
+                                    <Edit className="h-4 w-4 mr-2" />Editar
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className="text-destructive"
+                                    onClick={() => handleDelete(product.id, product.name)}
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />Eliminar
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
               </div>
             )}
 

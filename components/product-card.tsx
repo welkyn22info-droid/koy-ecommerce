@@ -29,9 +29,8 @@ export function ProductCard({ product, showQuickAdd = true }: ProductCardProps) 
     const cartItem = {
       id: `${product.id}-${Date.now()}`,
       product,
-      size: product.sizes[1] || product.sizes[0], // Default to M
+      size: product.sizes[1] || product.sizes[0],
       color: product.colors[0],
-      design: product.designs[0],
       quantity: 1,
     }
     
